@@ -9,21 +9,50 @@
 #include <net/if.h>
 
 
-#define SDO_READ_INDEX 1
-#define SDO_WRITE_INDEX 2
+
 #define SDO_BUF_SIZE 256
 #define EC_TIMEOUTMON 500
 
 
 static int servo_setup(ecx_contextt * ctx, uint16 slave) {
 
+        // RxPDO
     uint8_t u8val = 0;
+    ecx_SDOwrite(ctx, slave, 0x1600, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+
+    uint32_t u16val = 0x60400010;
+    ecx_SDOwrite(ctx, slave, 0x1600, 0x01, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
+    // u16val = 0x60FF;
+    // ecx_SDOwrite(ctx, slave, 0x1600, 0x02, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
+    // u16val = 0x6060;
+    // ecx_SDOwrite(ctx, slave, 0x1600, 0x03, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
+
+    u8val = 1;
+    ecx_SDOwrite(ctx, slave, 0x1600, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+    //TPdo
+
+    u8val = 0;
+    ecx_SDOwrite(ctx, slave, 0x1A00, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+
+    u16val = 0x6041;
+    ecx_SDOwrite(ctx, slave, 0x1A00, 0x01, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
+    u16val = 0x6064;
+    ecx_SDOwrite(ctx, slave, 0x1A00, 0x02, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
+    u16val = 0x606C;
+    ecx_SDOwrite(ctx, slave, 0x1A00, 0x03, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
+    u16val = 0x6061;
+    ecx_SDOwrite(ctx, slave, 0x1A00, 0x04, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
+
+    u8val = 4;
+    ecx_SDOwrite(ctx, slave, 0x1A00, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+
+    //ss
+    u8val = 0;
     ecx_SDOwrite(ctx, slave, 0x1c12, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
 
-    uint16_t u16val = 0x1701;
+    u16val = 0x1600;
     ecx_SDOwrite(ctx, slave, 0x1c12, 0x01, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
-
-    u16val = 0x1B01;
+    u16val = 0x1A00;
     ecx_SDOwrite(ctx, slave, 0x1c13, 0x01, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
 
     u8val = 1;
@@ -90,15 +119,9 @@ ErrorCode EtherCatCommunication::open() {
 
     ecx_config_map_group(&ctx, IOMap, 0);
 
-    /* Add to mailbox cyclic handling */
     for (int si = 1; si <= ctx.slavecount; si++)
     {
         ec_slavet *slave = &ctx.slavelist[si];
-        if (slave->CoEdetails > 0)
-        {
-            ecx_slavembxcyclic(&ctx, si);
-        }
-
         LOG_INFO("Slave {}: {}", si, slave->name);
         LOG_INFO("State: {}", slave->state);
         LOG_INFO("Output size: {}", slave->Obytes);
@@ -111,38 +134,41 @@ ErrorCode EtherCatCommunication::open() {
 
     ecx_configdc(&ctx);
 
-    int chk = 200;
-    /* wait for all slaves to reach OP state */
-    do
-    {
-        ctx.slavelist[0].state = EC_STATE_OPERATIONAL;
-        ecx_writestate(&ctx, 0);
+    auto switch_device_state = [this](auto state_){
+        int chk = 200;
+        do
+        {
+            ctx.slavelist[0].state = state_;
+            ecx_writestate(&ctx, 0);
 
-        ecx_send_processdata(&ctx);
-        ecx_receive_processdata(&ctx, EC_TIMEOUTRET);
+            ecx_send_processdata(&ctx);
+            ecx_receive_processdata(&ctx, EC_TIMEOUTRET);
 
-        ecx_statecheck(&ctx, 0, EC_STATE_OPERATIONAL, 50000);
-        ecx_readstate(&ctx);
+            ecx_statecheck(&ctx, 0, state_, 50000);
+            ecx_readstate(&ctx);
 
-        LOG_INFO("wait for all slaves to reach OP state");
-    } while (chk-- && (ctx.slavelist[0].state != EC_STATE_OPERATIONAL));
+            LOG_INFO("wait for all slaves to reach {} state", state_);
+        } while (chk-- && (ctx.slavelist[0].state != state_));
+    };
+
+    switch_device_state(EC_STATE_SAFE_OP);
+    switch_device_state(EC_STATE_OPERATIONAL);
 
     if (ctx.slavelist[0].state != EC_STATE_OPERATIONAL) {
         LOG_INFO("DC wait fail");
     }
-
     //数据刷新线程
     ethercat_thread_ = std::make_shared<std::thread>([this, expectedWKC](){
         while(!quit_ethercat_thread)
         {
-            osal_usleep(1000);  //1ms
+            osal_usleep(100);  //100us
             {
                 std::unique_lock lock(ethercat_mutex_);  //写
                 ecx_send_processdata(&ctx);
                 int wkc = ecx_receive_processdata(&ctx, EC_TIMEOUTRET);
-                ecx_mbxhandler(&ctx, 0, 4);
 
                 if(wkc != expectedWKC) {
+                    LOG_INFO( "wkc {} != expectedWKC {}", wkc, expectedWKC);
                     ethercat_has_error_ = true;
                 }
             }
@@ -273,37 +299,14 @@ ErrorCode EtherCatCommunication::close() {
 }
 
 
-size_t EtherCatCommunication::pdo_read(uint8_t device_id , uint8_t *data, size_t len) {
-    if(device_id <= 0  || ethercat_has_error_ || device_id > ctx.slavecount || len > ctx.slavelist[device_id].Ibytes
-        || data == nullptr || len == 0) {
-        return 0;
-    }
-    std::shared_lock lock(ethercat_mutex_); //读
-    std::memcpy(data, ctx.slavelist[device_id].inputs, len);
-    return len;
-}
 
-ErrorCode EtherCatCommunication::pdo_write(uint8_t device_id, uint8_t *data, size_t len) {
-    if(device_id <= 0 || ethercat_has_error_ || device_id > ctx.slavecount || len > ctx.slavelist[device_id].Obytes ||
-        data == nullptr || len == 0) {
-        return ErrorCode::ERROR_COMMUNICATION_BUSY;
-    }
-    std::unique_lock lock(ethercat_mutex_); //写
-    std::memcpy(ctx.slavelist[device_id].outputs, data, len);
+ErrorCode EtherCatCommunication::SDOwrite(uint16 Slave, uint16 Index, uint8 SubIndex, int psize, const void *p) {
 
-    return ErrorCode::SUCCESS;
-}
-
-ErrorCode EtherCatCommunication::sdo_write(uint8_t device_id , uint8_t *data, size_t len) {
-
-
-    using namespace std::chrono_literals;
-
-    if(device_id <= 0 || device_id > ctx.slavecount || ethercat_has_error_ || data == nullptr || len == 0) {
+    if(Slave <= 0 || Slave > ctx.slavecount || ethercat_has_error_ || p == nullptr || psize == 0) {
         return ErrorCode::INVALID_DEVICE_ID;
     }
-
-    auto wkc = ecx_SDOwrite(&ctx, device_id, 0x8001, SDO_WRITE_INDEX, FALSE, len, (void*)data, EC_TIMEOUTTXM);
+    std::unique_lock lock(ethercat_mutex_);  //写
+    auto wkc = ecx_SDOwrite(&ctx, Slave, Index, SubIndex, FALSE, psize, (void*)p, EC_TIMEOUTTXM);
 
     if(wkc <= 0) {
         LOG_INFO( "SDO send fail: wkc: {}", wkc);
@@ -313,21 +316,44 @@ ErrorCode EtherCatCommunication::sdo_write(uint8_t device_id , uint8_t *data, si
     return ErrorCode::SUCCESS;
 }
 
+ErrorCode EtherCatCommunication::SDOread(uint16 Slave, uint16 Index, uint8 SubIndex, int psize, const void *p) {
 
-size_t EtherCatCommunication::sdo_read(uint8_t device_id, uint8_t *data, size_t len) {
-
-    if(device_id <= 0 || device_id > ctx.slavecount || len > SDO_BUF_SIZE  || ethercat_has_error_ || data == nullptr || len == 0) {
-        return 0;
+    if(Slave <= 0 || Slave > ctx.slavecount || ethercat_has_error_ || p == nullptr || psize == 0) {
+        return ErrorCode::INVALID_DEVICE_ID;
     }
-    static uint8_t sdo_buf[SDO_BUF_SIZE]{0};
+    std::unique_lock lock(ethercat_mutex_);  //写
+    auto wkc = ecx_SDOread(&ctx, Slave, Index, SubIndex, FALSE, &psize, (void*)p, EC_TIMEOUTTXM);
 
-    int size = SDO_BUF_SIZE;
-    int wkc = ecx_SDOread(&ctx, device_id, 0x8001, SDO_READ_INDEX, FALSE, &size, sdo_buf, EC_TIMEOUTRXM);
     if(wkc <= 0) {
         LOG_INFO( "SDO read fail: wkc: {}", wkc);
-        return 0;
+        return ErrorCode::INVALID_DEVICE_ID;
     }
-    std::memcpy(data, sdo_buf, len);
 
-    return len;
+    return ErrorCode::SUCCESS;
+}
+
+void EtherCatCommunication::PDOwrite(uint16 Slave, const TPdo_info_t &pdo) {
+    if(Slave <= 0 || Slave > ctx.slavecount || ethercat_has_error_) {
+        return;
+    }
+    std::unique_lock lock(ethercat_mutex_);
+
+    TPdo_info_t *pdo_ptr = (TPdo_info_t *)(ctx.slavelist[Slave].outputs);
+    *pdo_ptr = pdo;
+
+    LOG_INFO("PDO write: control_word:{:#X}, target_position:{}, target_velocity:{}, target_torque:{}, mode_of_operation:{}, Probe_mode:{}, profile_velocity:{}",
+             pdo.control_word, pdo.target_position, pdo.target_velocity, pdo.target_torque, pdo.mode_of_operation, pdo.Probe_mode, pdo.profile_velocity);
+}
+
+void EtherCatCommunication::PDOread(uint16 Slave, RPdo_info_t &pdo) {
+    if(Slave <= 0 || Slave > ctx.slavecount || ethercat_has_error_) {
+        return;
+    }
+    std::shared_lock lock(ethercat_mutex_);  //读
+
+    RPdo_info_t *pdo_ptr = (RPdo_info_t *)(ctx.slavelist[Slave].inputs);
+    pdo = *pdo_ptr;
+
+    LOG_INFO("PDO read: error_code:{:#X}, state_word:{:#X}, position:{}, torque:{}, operation:{}, Probe_mode:{}, Probe_mode1:{}, Probe_mode2:{}, DI:{:#X}",
+             pdo.error_code, pdo.state_word, pdo.position, pdo.torque, pdo.operation, pdo.Probe_mode, pdo.Probe_mode1, pdo.Probe_mode2, pdo.DI);
 }
