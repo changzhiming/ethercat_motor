@@ -16,43 +16,41 @@ int main(int argc, char **argv) {
         LOG_INFO("Failed to open ethercat_comm communication");
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    int device = 2;
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     //
     TPdo_info_t tpdo_info{};
     tpdo_info.control_word = 6; // 使能
-    tpdo_info.mode_of_operation = 0x09; // 速度模式
-    tpdo_info.profile_velocity = 2147483600; // 最大转速
-    tpdo_info.target_velocity = 89898482; // 目标速度
-    ethercat_comm->PDOwrite(1, tpdo_info);
+    tpdo_info.mode = 0x09; // 速度模式
+    tpdo_info.speed = 8388608 * 3; // 速度
+    ethercat_comm->PDOwrite(device, tpdo_info);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     RPdo_info_t rpdo_info{};
-    ethercat_comm->PDOread(1, rpdo_info);
-    LOG_INFO("state_word: {:#b}", rpdo_info.state_word);
+    ethercat_comm->PDOread(device, rpdo_info);
+    LOG_INFO("write: 6 state_word: {:#X}, mode: {:#X}, speed: {}", rpdo_info.state_word, rpdo_info.mode, rpdo_info.speed);
 
-    //
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     //
     tpdo_info.control_word = 7; // 使能
-    ethercat_comm->PDOwrite(1, tpdo_info);
+    ethercat_comm->PDOwrite(device, tpdo_info);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
 
-    ethercat_comm->PDOread(1, rpdo_info);
-    LOG_INFO("state_word: {:#b}", rpdo_info.state_word);
+    ethercat_comm->PDOread(device, rpdo_info);
+    LOG_INFO("write: 7 state_word: {:#X}, mode: {:#X}, speed: {}", rpdo_info.state_word, rpdo_info.mode, rpdo_info.speed);
 
      //
     tpdo_info.control_word = 15; // 使能
-    ethercat_comm->PDOwrite(1, tpdo_info);
+    ethercat_comm->PDOwrite(device, tpdo_info);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
 
-    ethercat_comm->PDOread(1, rpdo_info);
-    LOG_INFO("state_word: {:#b}", rpdo_info.state_word);
+    ethercat_comm->PDOread(device, rpdo_info);
+    LOG_INFO("write: 15 state_word: {:#X}, mode: {:#X}, speed: {}", rpdo_info.state_word, rpdo_info.mode, rpdo_info.speed);
 
 
 

@@ -16,70 +16,71 @@
 
 static int servo_setup(ecx_contextt * ctx, uint16 slave) {
 
-        // RxPDO
     uint8_t u8val = 0;
-    ecx_SDOwrite(ctx, slave, 0x1600, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-
-    uint32_t u16val = 0x60400010;
-    ecx_SDOwrite(ctx, slave, 0x1600, 0x01, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
-    // u16val = 0x60FF;
-    // ecx_SDOwrite(ctx, slave, 0x1600, 0x02, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
-    // u16val = 0x6060;
-    // ecx_SDOwrite(ctx, slave, 0x1600, 0x03, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
-
-    u8val = 1;
-    ecx_SDOwrite(ctx, slave, 0x1600, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-    //TPdo
-
+    uint16_t u16val = 0;
+    uint32_t u32val = 0;
+    int wk = 0;
+    //group
     u8val = 0;
-    ecx_SDOwrite(ctx, slave, 0x1A00, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-
-    u16val = 0x6041;
-    ecx_SDOwrite(ctx, slave, 0x1A00, 0x01, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
-    u16val = 0x6064;
-    ecx_SDOwrite(ctx, slave, 0x1A00, 0x02, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
-    u16val = 0x606C;
-    ecx_SDOwrite(ctx, slave, 0x1A00, 0x03, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
-    u16val = 0x6061;
-    ecx_SDOwrite(ctx, slave, 0x1A00, 0x04, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
-
-    u8val = 4;
-    ecx_SDOwrite(ctx, slave, 0x1A00, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-
-    //ss
+    wk = ecx_SDOwrite(ctx, slave, 0x1c12, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
     u8val = 0;
-    ecx_SDOwrite(ctx, slave, 0x1c12, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+    wk = ecx_SDOwrite(ctx, slave, 0x1c13, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
 
     u16val = 0x1600;
-    ecx_SDOwrite(ctx, slave, 0x1c12, 0x01, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
+    wk = ecx_SDOwrite(ctx, slave, 0x1c12, 0x01, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
     u16val = 0x1A00;
-    ecx_SDOwrite(ctx, slave, 0x1c13, 0x01, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
+    wk = ecx_SDOwrite(ctx, slave, 0x1c13, 0x01, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
 
     u8val = 1;
-    ecx_SDOwrite(ctx, slave, 0x1c12, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-//   expect_wkc++;
+    wk = ecx_SDOwrite(ctx, slave, 0x1c12, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
+    u8val = 1;
+    wk = ecx_SDOwrite(ctx, slave, 0x1c13, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
 
-//   u8val = 0;
-//   retval += ecx_SDOwrite(ctx, slave, 0x1c13, 0x00, FALSE, sizeof(u8val), &u8val,
-//                         EC_TIMEOUTRXM);
-//   expect_wkc++;
+    // RxPDO
+    u8val = 0;
+    wk = ecx_SDOwrite(ctx, slave, 0x1600, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
 
-//   u16val = 0x1a00;
-//   retval += ecx_SDOwrite(ctx, slave, 0x1c13, 0x02, FALSE, sizeof(u16val), &u16val,
-//                         EC_TIMEOUTRXM);
-//   u8val++;
-//   expect_wkc++;
+    u32val = 0x60400010;
+    wk = ecx_SDOwrite(ctx, slave, 0x1600, 0x01, FALSE, sizeof(u32val), &u32val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
+    u32val = 0x60FF0020;
+    wk = ecx_SDOwrite(ctx, slave, 0x1600, 0x02, FALSE, sizeof(u32val), &u32val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
+    u32val = 0x60600008;
+    wk = ecx_SDOwrite(ctx, slave, 0x1600, 0x03, FALSE, sizeof(u32val), &u32val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
 
-//   u8val = 1;
-//   retval += ecx_SDOwrite(ctx, slave, 0x1c13, 0x00, FALSE, sizeof(u8val), &u8val,
-//                         EC_TIMEOUTRXM);
-//   expect_wkc++;
+    u8val = 3;
+    wk = ecx_SDOwrite(ctx, slave, 0x1600, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
+// //TPdo
 
-//   u16val = 15;
-//   retval += ecx_SDOwrite(ctx, slave, 0x10f1, 0x02, FALSE, sizeof(u16val), &u16val,
-//                         EC_TIMEOUTRXM);  // Error Settings Object
+    u8val = 0;
+    wk = ecx_SDOwrite(ctx, slave, 0x1A00, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
 
-  return 0;
+    u32val = 0x60410010;
+    wk = ecx_SDOwrite(ctx, slave, 0x1A00, 0x01, FALSE, sizeof(u32val), &u32val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
+    u32val = 0x606C0020;
+    wk = ecx_SDOwrite(ctx, slave, 0x1A00, 0x02, FALSE, sizeof(u32val), &u32val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
+    u32val = 0x60610008;
+    wk = ecx_SDOwrite(ctx, slave, 0x1A00, 0x03, FALSE, sizeof(u32val), &u32val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
+
+    u8val = 3;
+    wk = ecx_SDOwrite(ctx, slave, 0x1A00, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
+    LOG_INFO("wk:{}", wk);
+
+    return 0;
 }
 
 
@@ -340,9 +341,6 @@ void EtherCatCommunication::PDOwrite(uint16 Slave, const TPdo_info_t &pdo) {
 
     TPdo_info_t *pdo_ptr = (TPdo_info_t *)(ctx.slavelist[Slave].outputs);
     *pdo_ptr = pdo;
-
-    LOG_INFO("PDO write: control_word:{:#X}, target_position:{}, target_velocity:{}, target_torque:{}, mode_of_operation:{}, Probe_mode:{}, profile_velocity:{}",
-             pdo.control_word, pdo.target_position, pdo.target_velocity, pdo.target_torque, pdo.mode_of_operation, pdo.Probe_mode, pdo.profile_velocity);
 }
 
 void EtherCatCommunication::PDOread(uint16 Slave, RPdo_info_t &pdo) {
@@ -353,7 +351,4 @@ void EtherCatCommunication::PDOread(uint16 Slave, RPdo_info_t &pdo) {
 
     RPdo_info_t *pdo_ptr = (RPdo_info_t *)(ctx.slavelist[Slave].inputs);
     pdo = *pdo_ptr;
-
-    LOG_INFO("PDO read: error_code:{:#X}, state_word:{:#X}, position:{}, torque:{}, operation:{}, Probe_mode:{}, Probe_mode1:{}, Probe_mode2:{}, DI:{:#X}",
-             pdo.error_code, pdo.state_word, pdo.position, pdo.torque, pdo.operation, pdo.Probe_mode, pdo.Probe_mode1, pdo.Probe_mode2, pdo.DI);
 }
