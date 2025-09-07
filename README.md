@@ -23,6 +23,7 @@ sudo apt install libspdlog-dev libgtest-dev  libgflags-dev pybind11-dev libboost
 
 mkdir build
 cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=$(which
 
 ```
 ## 测试
