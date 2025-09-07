@@ -14,6 +14,7 @@
 #define EC_TIMEOUTMON 500
 
 
+
 static int servo_setup(ecx_contextt * ctx, uint16 slave) {
 
     uint8_t u8val = 0;
