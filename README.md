@@ -20,11 +20,7 @@
 sudo apt install libspdlog-dev libgtest-dev  libgflags-dev pybind11-dev libboost-stacktrace-dev
 
 编译
-bash build.sh编译
 
-install文件夹是动态库和测试文件
-pybind_control/dist目录下是whl pip安装文件
-source install/setup.sh
 ```
 ## 测试
 
