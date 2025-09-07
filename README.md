@@ -23,7 +23,7 @@ sudo apt install libspdlog-dev libgtest-dev  libgflags-dev pybind11-dev libboost
 
 mkdir build
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=$(which python3)
+cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j4
 make install
 
