@@ -14,7 +14,6 @@
 #define EC_TIMEOUTMON 500
 
 
-
 static int servo_setup(ecx_contextt * ctx, uint16 slave) {
 
     uint8_t u8val = 0;
@@ -62,7 +61,9 @@ static int servo_setup(ecx_contextt * ctx, uint16 slave) {
     wk = ecx_SDOwrite(ctx, slave, 0x1600, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
     LOG_INFO("wk:{}", wk);
 // //TPdo
-
+    /**
+     * @brief
+     */
     u8val = 0;
     wk = ecx_SDOwrite(ctx, slave, 0x1A00, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
     LOG_INFO("wk:{}", wk);
