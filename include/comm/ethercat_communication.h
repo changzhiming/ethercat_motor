@@ -45,6 +45,8 @@ public:
 
     void PDOwrite(uint16 Slave, const TPdo_info_t &pdo);
     void PDOread(uint16 Slave, RPdo_info_t &pdo);
+
+    void init_motor(uint16 Slave);
 private:
     bool error_handle();
 

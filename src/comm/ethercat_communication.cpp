@@ -9,8 +9,6 @@
 #include <net/if.h>
 
 
-
-#define SDO_BUF_SIZE 256
 #define EC_TIMEOUTMON 500
 
 
@@ -23,62 +21,50 @@ static int servo_setup(ecx_contextt * ctx, uint16 slave) {
     //group
     u8val = 0;
     wk = ecx_SDOwrite(ctx, slave, 0x1c12, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
     u8val = 0;
     wk = ecx_SDOwrite(ctx, slave, 0x1c13, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
+
 
     u16val = 0x1600;
     wk = ecx_SDOwrite(ctx, slave, 0x1c12, 0x01, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
     u16val = 0x1A00;
     wk = ecx_SDOwrite(ctx, slave, 0x1c13, 0x01, FALSE, sizeof(u16val), &u16val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
+
 
     u8val = 1;
     wk = ecx_SDOwrite(ctx, slave, 0x1c12, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
     u8val = 1;
     wk = ecx_SDOwrite(ctx, slave, 0x1c13, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
+
 
     // RxPDO
     u8val = 0;
     wk = ecx_SDOwrite(ctx, slave, 0x1600, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
 
     u32val = 0x60400010;
     wk = ecx_SDOwrite(ctx, slave, 0x1600, 0x01, FALSE, sizeof(u32val), &u32val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
     u32val = 0x60FF0020;
     wk = ecx_SDOwrite(ctx, slave, 0x1600, 0x02, FALSE, sizeof(u32val), &u32val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
     u32val = 0x60600008;
     wk = ecx_SDOwrite(ctx, slave, 0x1600, 0x03, FALSE, sizeof(u32val), &u32val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
 
     u8val = 3;
     wk = ecx_SDOwrite(ctx, slave, 0x1600, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
+
 // //TPdo
 
     u8val = 0;
     wk = ecx_SDOwrite(ctx, slave, 0x1A00, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
-
     u32val = 0x60410010;
     wk = ecx_SDOwrite(ctx, slave, 0x1A00, 0x01, FALSE, sizeof(u32val), &u32val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
     u32val = 0x606C0020;
     wk = ecx_SDOwrite(ctx, slave, 0x1A00, 0x02, FALSE, sizeof(u32val), &u32val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
     u32val = 0x60610008;
     wk = ecx_SDOwrite(ctx, slave, 0x1A00, 0x03, FALSE, sizeof(u32val), &u32val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
 
     u8val = 3;
     wk = ecx_SDOwrite(ctx, slave, 0x1A00, 0x00, FALSE, sizeof(u8val), &u8val, EC_TIMEOUTRXM);
-    LOG_INFO("wk:{}", wk);
+
 
     return 0;
 }
@@ -351,4 +337,25 @@ void EtherCatCommunication::PDOread(uint16 Slave, RPdo_info_t &pdo) {
 
     RPdo_info_t *pdo_ptr = (RPdo_info_t *)(ctx.slavelist[Slave].inputs);
     pdo = *pdo_ptr;
+}
+
+void EtherCatCommunication::init_motor(uint16 Slave) {
+    if(Slave <= 0 || Slave > ctx.slavecount || ethercat_has_error_) {
+        return;
+    }
+
+    // 初始化 PDO
+    TPdo_info_t tpdo_info{.control_word = 6, .mode = 0x09, .speed = 8388608 * 3};
+    PDOwrite(Slave, tpdo_info);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    tpdo_info.control_word = 7; // 使能
+    PDOwrite(Slave, tpdo_info);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    tpdo_info.control_word = 15; // 使能
+    PDOwrite(Slave, tpdo_info);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    RPdo_info_t rpdo_info;
+    PDOread(Slave, rpdo_info);
+    LOG_INFO("write: 15 state_word: {:#X}, mode: {:#X}, speed: {}", rpdo_info.state_word, rpdo_info.mode, rpdo_info.speed);
 }
