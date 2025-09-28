@@ -8,10 +8,6 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 
-
-#define EC_TIMEOUTMON 500
-
-
 static int servo_setup(ecx_contextt * ctx, uint16 slave) {
 
     uint8_t u8val = 0;
@@ -155,8 +151,9 @@ ErrorCode EtherCatCommunication::open() {
                 int wkc = ecx_receive_processdata(&ctx, EC_TIMEOUTRET);
 
                 if(wkc != expectedWKC) {
-                    LOG_INFO( "wkc {} != expectedWKC {}", wkc, expectedWKC);
-                    ethercat_has_error_ = true;
+                    wkc_error_count_++;
+                } else {
+                    wkc_error_count_ = 0;
                 }
             }
         }
@@ -165,11 +162,8 @@ ErrorCode EtherCatCommunication::open() {
     ethercat_error_thread_ = std::make_shared<std::thread>([this](){
         while(!quit_ethercat_thread)
         {
-            osal_usleep(100000);  //100ms
-            if(ethercat_has_error_) {
-                std::unique_lock lock(ethercat_mutex_);  //写
-                ethercat_has_error_ = error_handle();
-            }
+            osal_usleep(EC_TIMEOUTSTATE);  //2s
+            error_handle();
         }
     });
     //高优先级
@@ -186,77 +180,91 @@ ErrorCode EtherCatCommunication::open() {
     return ErrorCode::SUCCESS;
 }
 
-bool EtherCatCommunication::error_handle() {
+void EtherCatCommunication::error_handle() {
 
-    bool has_slave_error = false;
-    int currentgroup = 0;
-    /* one or more slaves are not responding */
-    ecx_readstate(&ctx);
-    for (int slaveix = 1; slaveix <= ctx.slavecount; slaveix++)
-    {
-        ec_slavet *slave = &ctx.slavelist[slaveix];
+    constexpr int EC_TIMEOUTMON = 500;
 
-        if ((slave->group == currentgroup) && (slave->state != EC_STATE_OPERATIONAL))
-        {
-            has_slave_error = true;
-
-            if (slave->state == (EC_STATE_SAFE_OP + EC_STATE_ERROR))
-            {
-                printf("ERROR : slave %d is in SAFE_OP + ERROR, attempting ack.\n", slaveix);
-                slave->state = (EC_STATE_SAFE_OP + EC_STATE_ACK);
-                ecx_writestate(&ctx, slaveix);
-            }
-            else if (slave->state == EC_STATE_SAFE_OP)
-            {
-                printf("WARNING : slave %d is in SAFE_OP, change to OPERATIONAL.\n", slaveix);
-                slave->state = EC_STATE_OPERATIONAL;
-                if (slave->mbxhandlerstate == ECT_MBXH_LOST) slave->mbxhandlerstate = ECT_MBXH_CYCLIC;
-                ecx_writestate(&ctx, slaveix);
-            }
-            else if (slave->state > EC_STATE_NONE)
-            {
-                if (ecx_reconfig_slave(&ctx, slaveix, EC_TIMEOUTMON) >= EC_STATE_PRE_OP)
-                {
-                slave->islost = FALSE;
-                printf("MESSAGE : slave %d reconfigured\n", slaveix);
-                }
-            }
-            else if (!slave->islost)
-            {
-                /* re-check state */
-                ecx_statecheck(&ctx, slaveix, EC_STATE_OPERATIONAL, EC_TIMEOUTRET);
-                if (slave->state == EC_STATE_NONE)
-                {
-                slave->islost = TRUE;
-                slave->mbxhandlerstate = ECT_MBXH_LOST;
-                /* zero input data for this slave */
-                if (slave->Ibytes)
-                {
-                    memset(slave->inputs, 0x00, slave->Ibytes);
-                }
-                printf("ERROR : slave %d lost\n", slaveix);
-                }
-            }
-        }
-        if (slave->islost)
-        {
-            if (slave->state <= EC_STATE_INIT)
-            {
-                if (ecx_recover_slave(&ctx, slaveix, EC_TIMEOUTMON))
-                {
-                slave->islost = FALSE;
-                printf("MESSAGE : slave %d recovered\n", slaveix);
-                }
-            }
-            else
-            {
-                slave->islost = FALSE;
-                printf("MESSAGE : slave %d found\n", slaveix);
-            }
-        }
+    if(wkc_error_count_ <= 2) {
+        return; //继续处理
     }
 
-    return has_slave_error;
+    printf("error chandle wkc_error_count_: %d\n", wkc_error_count_.load());
+
+    int currentgroup = 0;
+
+    if (((wkc_error_count_ > 3) || ctx.grouplist[currentgroup].docheckstate))
+    {
+        /* one or more slaves are not responding */
+        ctx.grouplist[currentgroup].docheckstate = FALSE;
+        ecx_readstate(&ctx);
+        for (size_t slaveix = 1; slaveix <= ctx.slavecount; slaveix++)
+        {
+            ec_slavet *slave = &ctx.slavelist[slaveix];
+
+            if ((slave->group == currentgroup) && (slave->state != EC_STATE_OPERATIONAL))
+            {
+                ctx.grouplist[currentgroup].docheckstate = TRUE;
+                if (slave->state == (EC_STATE_SAFE_OP + EC_STATE_ERROR))
+                {
+                    printf("ERROR : slave %zu is in SAFE_OP + ERROR, attempting ack.\n", slaveix);
+                    slave->state = (EC_STATE_SAFE_OP + EC_STATE_ACK);
+                    ecx_writestate(&ctx, slaveix);
+                }
+                else if (slave->state == EC_STATE_SAFE_OP)
+                {
+                    printf("WARNING : slave %zu is in SAFE_OP, change to OPERATIONAL.\n", slaveix);
+                    slave->state = EC_STATE_OPERATIONAL;
+                    if (slave->mbxhandlerstate == ECT_MBXH_LOST) slave->mbxhandlerstate = ECT_MBXH_CYCLIC;
+                    ecx_writestate(&ctx, slaveix);
+                }
+                else if (slave->state > EC_STATE_NONE)
+                {
+                    if (ecx_reconfig_slave(&ctx, slaveix, EC_TIMEOUTMON) >= EC_STATE_PRE_OP)
+                    {
+                        slave->islost = FALSE;
+                        printf("MESSAGE : slave %zu reconfigured\n", slaveix);
+                    }
+                }
+                else if (!slave->islost)
+                {
+                    /* re-check state */
+                    ecx_statecheck(&ctx, slaveix, EC_STATE_OPERATIONAL, EC_TIMEOUTRET);
+                    if (slave->state == EC_STATE_NONE)
+                    {
+                        slave->islost = TRUE;
+                        slave->mbxhandlerstate = ECT_MBXH_LOST;
+                        /* zero input data for this slave */
+                        if (slave->Ibytes)
+                        {
+                        memset(slave->inputs, 0x00, slave->Ibytes);
+                        }
+                        printf("ERROR : slave %zu lost\n", slaveix);
+                    }
+                }
+            }
+            if (slave->islost)
+            {
+                if (slave->state <= EC_STATE_INIT)
+                {
+                    if (ecx_recover_slave(&ctx, slaveix, EC_TIMEOUTMON))
+                    {
+                        slave->islost = FALSE;
+                        printf("MESSAGE : slave %zu recovered\n", slaveix);
+                    }
+                }
+                else
+                {
+                    slave->islost = FALSE;
+                    printf("MESSAGE : slave %zu found\n", slaveix);
+                }
+            }
+        }
+        if (!ctx.grouplist[currentgroup].docheckstate) {
+            printf("OK : all slaves resumed OPERATIONAL.\n");
+        }
+
+        wkc_error_count_ = 0;
+    }
 }
 
 ErrorCode EtherCatCommunication::close() {
@@ -289,7 +297,7 @@ ErrorCode EtherCatCommunication::close() {
 
 ErrorCode EtherCatCommunication::SDOwrite(uint16 Slave, uint16 Index, uint8 SubIndex, int psize, const void *p) {
 
-    if(Slave <= 0 || Slave > ctx.slavecount || ethercat_has_error_ || p == nullptr || psize == 0) {
+    if(Slave <= 0 || Slave > ctx.slavecount || p == nullptr || psize == 0) {
         return ErrorCode::INVALID_DEVICE_ID;
     }
     std::unique_lock lock(ethercat_mutex_);  //写
@@ -305,7 +313,7 @@ ErrorCode EtherCatCommunication::SDOwrite(uint16 Slave, uint16 Index, uint8 SubI
 
 ErrorCode EtherCatCommunication::SDOread(uint16 Slave, uint16 Index, uint8 SubIndex, int psize, const void *p) {
 
-    if(Slave <= 0 || Slave > ctx.slavecount || ethercat_has_error_ || p == nullptr || psize == 0) {
+    if(Slave <= 0 || Slave > ctx.slavecount  || p == nullptr || psize == 0) {
         return ErrorCode::INVALID_DEVICE_ID;
     }
     std::unique_lock lock(ethercat_mutex_);  //写
@@ -320,7 +328,7 @@ ErrorCode EtherCatCommunication::SDOread(uint16 Slave, uint16 Index, uint8 SubIn
 }
 
 void EtherCatCommunication::PDOwrite(uint16 Slave, const TPdo_info_t &pdo) {
-    if(Slave <= 0 || Slave > ctx.slavecount || ethercat_has_error_) {
+    if(Slave <= 0 || Slave > ctx.slavecount) {
         return;
     }
     std::unique_lock lock(ethercat_mutex_);
@@ -330,7 +338,7 @@ void EtherCatCommunication::PDOwrite(uint16 Slave, const TPdo_info_t &pdo) {
 }
 
 void EtherCatCommunication::PDOread(uint16 Slave, RPdo_info_t &pdo) {
-    if(Slave <= 0 || Slave > ctx.slavecount || ethercat_has_error_) {
+    if(Slave <= 0 || Slave > ctx.slavecount ) {
         return;
     }
     std::shared_lock lock(ethercat_mutex_);  //读
@@ -340,12 +348,12 @@ void EtherCatCommunication::PDOread(uint16 Slave, RPdo_info_t &pdo) {
 }
 
 void EtherCatCommunication::init_motor(uint16 Slave) {
-    if(Slave <= 0 || Slave > ctx.slavecount || ethercat_has_error_) {
+    if(Slave <= 0 || Slave > ctx.slavecount ) {
         return;
     }
 
     // 初始化 PDO
-    TPdo_info_t tpdo_info{.control_word = 6, .mode = 0x09, .speed = 8388608 * 3};
+    TPdo_info_t tpdo_info{.control_word = 6, .speed = 8388608 * 3, .mode = 0x09};
     PDOwrite(Slave, tpdo_info);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     tpdo_info.control_word = 7; // 使能

@@ -4,6 +4,7 @@ project(ethercat_motor VERSION 0.1.6 LANGUAGES C CXX DESCRIPTION "hand_sdk 包�
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 #生成调试信息
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -rdynamic -fno-omit-frame-pointer -funwind-tables")
@@ -27,10 +28,11 @@ file(GLOB_RECURSE SRC_SOURCE
 find_package(soem REQUIRED)
 find_package(fmt REQUIRED)
 find_library(ZMQ_LIBRARY zmq REQUIRED)
+find_package(Threads REQUIRED)
 
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/build/SOEM)
 add_executable(${PROJECT_NAME} ${SRC_SOURCE} ${SERIAL_SOURCES})
-target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt ${ZMQ_LIBRARY} soem boost_stacktrace_backtrace backtrace dl)
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt ${ZMQ_LIBRARY} soem boost_stacktrace_backtrace backtrace dl Threads::Threads)
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wno-sign-compare)
 # target_link_options(${PROJECT_NAME} PRIVATE -rdynamic -fno-omit-frame-pointer)
 # 添加头文件路径

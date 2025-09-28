@@ -48,7 +48,7 @@ public:
 
     void init_motor(uint16 Slave);
 private:
-    bool error_handle();
+    void error_handle();
 
 private:
     std::shared_ptr<std::thread> ethercat_thread_;
@@ -61,7 +61,7 @@ private:
 
     uint8_t IOMap[IOMapSize]{};
 
-    std::atomic<bool> ethercat_has_error_{false};
+    std::atomic<int> wkc_error_count_{0};
     std::atomic<bool> quit_ethercat_thread{false}; //线程退出
     std::atomic<bool> is_open{false};              //
 };
